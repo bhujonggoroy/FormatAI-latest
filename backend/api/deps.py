@@ -5,8 +5,10 @@ from backend.core.config import Settings, get_settings
 from backend.services.ai_service import AIService
 from backend.services.content_cleanup_service import ContentCleanupService
 from backend.services.document_service import DocumentService
+from backend.services.docx_service import DocxService
 from backend.services.formatting_service import FormattingService
 from backend.services.health_service import HealthService
+from backend.services.math_service import MathService
 from backend.services.provider_service import ProviderService
 
 
@@ -46,3 +48,15 @@ def get_document_service(
         content_cleanup_service=cleanup_service,
         formatting_service=formatting_service,
     )
+
+
+def get_math_service() -> MathService:
+    """Dependency provider for MathService."""
+    return MathService()
+
+
+def get_docx_service(
+    math_service: MathService = Depends(get_math_service),
+) -> DocxService:
+    """Dependency provider for DocxService."""
+    return DocxService(math_service=math_service)

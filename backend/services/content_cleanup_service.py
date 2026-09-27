@@ -13,6 +13,8 @@ import re
 from typing import List
 
 
+from backend.utils.math_detector import normalize_delimiters
+
 # Common AI chat preamble patterns
 AI_PREAMBLE_PATTERNS = [
     r"^(?:sure|certainly|absolutely)[!,.]?\s*(?:here(?:\s+is|\'s)|below is|i have formatted).+?[:\n]",
@@ -39,7 +41,9 @@ class ContentCleanupService:
         if not raw_text or not raw_text.strip():
             return ""
 
-        text = self.remove_ai_conversational_noise(raw_text)
+        # Normalize math delimiters before paragraph segmentation
+        normalized = normalize_delimiters(raw_text)
+        text = self.remove_ai_conversational_noise(normalized)
         lines = text.split("\n")
         lines = self.remove_redundant_headings(lines)
         lines = self.remove_unnecessary_bullets(lines)

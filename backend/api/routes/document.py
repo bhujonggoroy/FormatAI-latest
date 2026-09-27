@@ -1,20 +1,71 @@
-"""Academic Document Processing API Routes."""
+"""Academic Document Processing & DOCX Export API Routes."""
 
-from fastapi import APIRouter, Depends, status
+import re
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
-from backend.api.deps import get_document_service
+from backend.api.deps import get_document_service, get_docx_service
 from backend.models.document import (
     DocumentAnalysis,
+    DocumentDocxExportRequest,
     DocumentProcessRequest,
     DocumentProcessResponse,
+    DocumentStructure,
 )
 from backend.services.document_service import DocumentService
+from backend.services.docx_service import DocxService
 
-router = APIRouter(prefix="/api/document", tags=["Document Processing"])
+router = APIRouter(tags=["Document Processing & Export"])
+
+DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def _handle_docx_export(
+    payload: DocumentDocxExportRequest,
+    document_service: DocumentService,
+    docx_service: DocxService,
+) -> Response:
+    """Core export handler generating valid .docx file response."""
+    # 1. Resolve or compute DocumentStructure
+    target_doc: DocumentStructure
+    if payload.document is not None:
+        target_doc = payload.document
+    elif payload.raw_text:
+        process_res = document_service.process(
+            DocumentProcessRequest(raw_text=payload.raw_text, options=payload.options)
+        )
+        target_doc = process_res.document
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either 'document' (structured document model) or 'raw_text' must be provided.",
+        )
+
+    # 2. Generate DOCX binary bytes
+    docx_bytes = docx_service.generate_docx(
+        document=target_doc,
+        preset_name=payload.preset,
+    )
+
+    # 3. Determine clean attachment filename
+    raw_name = payload.filename or target_doc.title or "academic_document"
+    clean_name = re.sub(r"[^a-zA-Z0-9_\- ]", "", raw_name).strip() or "academic_document"
+    safe_filename = clean_name.replace(" ", "_")
+    if not safe_filename.endswith(".docx"):
+        safe_filename += ".docx"
+
+    return Response(
+        content=docx_bytes,
+        media_type=DOCX_MIME_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_filename}"',
+            "Content-Type": DOCX_MIME_TYPE,
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 @router.post(
-    "/process",
+    "/api/document/process",
     response_model=DocumentProcessResponse,
     summary="Process Raw Academic Content",
     description="Executes the full pipeline: Raw Input → Content Analysis → Content Cleanup → Structure Detection → Formatting Rules → Document Model.",
@@ -40,7 +91,7 @@ def process_document(
 
 
 @router.post(
-    "/analyze",
+    "/api/document/analyze",
     response_model=DocumentAnalysis,
     summary="Analyze Academic Content Structure",
     description="Performs structural and quality analysis on academic content without transforming it.",
@@ -51,3 +102,39 @@ def analyze_document(
 ) -> DocumentAnalysis:
     """Analyzes raw academic text structure, headings, math density, and citations."""
     return document_service.analyze_content(payload.raw_text)
+
+
+@router.post(
+    "/api/documents/docx",
+    summary="Export Structured Document to Microsoft Word (.docx)",
+    description="Consumes FormatAI DocumentStructure (or raw text) and returns a genuine, editable .docx file.",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {DOCX_MIME_TYPE: {}},
+            "description": "Genuine, editable Microsoft Word document binary",
+        }
+    },
+)
+def export_documents_docx(
+    payload: DocumentDocxExportRequest,
+    document_service: DocumentService = Depends(get_document_service),
+    docx_service: DocxService = Depends(get_docx_service),
+) -> Response:
+    """Primary DOCX export endpoint at /api/documents/docx."""
+    return _handle_docx_export(payload, document_service, docx_service)
+
+
+@router.post(
+    "/api/document/docx",
+    summary="Export Structured Document to Microsoft Word (.docx) [Alias]",
+    description="Alias endpoint for /api/documents/docx.",
+    response_class=Response,
+)
+def export_document_docx_alias(
+    payload: DocumentDocxExportRequest,
+    document_service: DocumentService = Depends(get_document_service),
+    docx_service: DocxService = Depends(get_docx_service),
+) -> Response:
+    """Alias DOCX export endpoint at /api/document/docx."""
+    return _handle_docx_export(payload, document_service, docx_service)

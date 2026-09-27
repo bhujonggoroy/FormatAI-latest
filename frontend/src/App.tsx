@@ -154,7 +154,7 @@ export default function App() {
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-slate-400 text-xs">Active Endpoints</span>
-                <span className="font-mono text-xs text-indigo-400">GET / &bull; /api/health &bull; POST /api/ai/generate</span>
+                <span className="font-mono text-xs text-indigo-400">/api/health &bull; /api/document/process &bull; /api/documents/docx</span>
               </div>
             </div>
           </div>

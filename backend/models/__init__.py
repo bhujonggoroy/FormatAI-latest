@@ -22,6 +22,13 @@ from backend.models.document import (
     DocumentProcessingOptions,
     DocumentProcessRequest,
     DocumentProcessResponse,
+    DocumentDocxExportRequest,
+)
+from backend.models.math import (
+    MathType,
+    MathSpan,
+    TextSegment,
+    MathConversionResult,
 )
 
 __all__ = [
@@ -45,4 +52,9 @@ __all__ = [
     "DocumentProcessingOptions",
     "DocumentProcessRequest",
     "DocumentProcessResponse",
+    "DocumentDocxExportRequest",
+    "MathType",
+    "MathSpan",
+    "TextSegment",
+    "MathConversionResult",
 ]
