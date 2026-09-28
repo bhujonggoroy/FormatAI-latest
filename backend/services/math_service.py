@@ -83,6 +83,7 @@ class MathService:
 
             # 3. MathML -> OMML
             omml = mathml2omml.convert(mathml)
+            omml = self._sanitize_omml(omml)
 
             # 4. Wrap with proper Office Math namespace and structure
             if is_display:
@@ -143,6 +144,14 @@ class MathService:
                 paragraph._p.append(xml_element)
                 return True
             except Exception as xml_exc:
+                # Attempt self-healing sanitization if conversion.omml was loaded from an un-sanitized cache
+                try:
+                    sanitized_omml = self._sanitize_omml(conversion.omml)
+                    xml_element = parse_xml(sanitized_omml)
+                    paragraph._p.append(xml_element)
+                    return True
+                except Exception:
+                    pass
                 logger.error(f"Failed to parse OMML XML into docx: {xml_exc}. Using fallback.")
 
         # Fallback: render formatted text run
@@ -178,6 +187,22 @@ class MathService:
     # -----------------------------------------------------------------------
     # Internal Preprocessing and Fallbacks
     # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _sanitize_omml(omml: str) -> str:
+        """Sanitizes generated OMML XML markup.
+
+        Fixes known upstream bugs in mathml2omml such as mismatched closing tags
+        (<m:groupChrPr> being closed by </m:groupChr> instead of </m:groupChrPr>).
+        """
+        # Fix mathml2omml groupChrPr closing tag bug (in MUnder and MOver templates)
+        # Specifically: <m:groupChrPr>...props...</m:groupChr><m:e> -> <m:groupChrPr>...props...</m:groupChrPr><m:e>
+        return re.sub(
+            r"<m:groupChrPr>((?:(?!<m:e>).)*?)</m:groupChr>",
+            r"<m:groupChrPr>\1</m:groupChrPr>",
+            omml,
+            flags=re.DOTALL,
+        )
 
     def _preprocess_latex_for_converter(self, latex: str) -> str:
         """Normalizes LaTeX idioms commonly found in LLM output before passing to MathML."""
@@ -246,3 +271,85 @@ class MathService:
         s = re.sub(r"\\", "", s)
 
         return s.strip()
+
+    def latex_to_rich_text(self, raw_latex: str, is_display: bool = False) -> str:
+        """Converts LaTeX mathematical expression to HTML-style rich text with <sup>, <sub>, and Unicode.
+
+        Preserves mathematical semantics: fractions, exponents, subscripts, roots, Greek symbols,
+        n-ary operators, limits, and matrices for PDF rendering engines (ReportLab).
+        """
+        s = raw_latex.strip()
+        s = re.sub(r"^\$\$|\$\$$", "", s)
+        s = re.sub(r"^\\\[|\\\]$", "", s)
+        s = re.sub(r"^\$|\$$", "", s)
+        s = re.sub(r"^\\\(|\\\)$", "", s)
+        s = s.strip()
+
+        # Pre-process matrices
+        if "matrix" in s:
+            s = re.sub(r"\\begin\{(?:pmatrix|bmatrix|vmatrix|matrix)\}", "[ ", s)
+            s = re.sub(r"\\end\{(?:pmatrix|bmatrix|vmatrix|matrix)\}", " ]", s)
+            s = s.replace(r"\\\\", " ; ")
+            s = s.replace("&", "  ")
+
+        symbols = {
+            r"\alpha": "α", r"\beta": "β", r"\gamma": "γ", r"\delta": "δ",
+            r"\epsilon": "ε", r"\varepsilon": "ε", r"\zeta": "ζ", r"\eta": "η",
+            r"\theta": "θ", r"\vartheta": "θ", r"\iota": "ι", r"\kappa": "κ",
+            r"\lambda": "λ", r"\mu": "μ", r"\nu": "ν", r"\xi": "ξ",
+            r"\pi": "π", r"\varpi": "ϖ", r"\rho": "ρ", r"\varrho": "ϱ",
+            r"\sigma": "σ", r"\varsigma": "ς", r"\tau": "τ", r"\upsilon": "υ",
+            r"\phi": "φ", r"\varphi": "ϕ", r"\chi": "χ", r"\psi": "ψ",
+            r"\omega": "ω",
+            r"\Delta": "Δ", r"\Gamma": "Γ", r"\Theta": "Θ", r"\Lambda": "Λ",
+            r"\Xi": "Ξ", r"\Pi": "Π", r"\Sigma": "Σ", r"\Upsilon": "Υ",
+            r"\Phi": "Φ", r"\Psi": "Ψ", r"\Omega": "Ω",
+            r"\sum": "∑", r"\int": "∫", r"\iint": "∬", r"\iiint": "∭",
+            r"\oint": "∮", r"\prod": "∏", r"\coprod": "∐", r"\infty": "∞",
+            r"\approx": "≈", r"\neq": "≠", r"\le": "≤", r"\ge": "≥",
+            r"\leq": "≤", r"\geq": "≥", r"\ll": "≪", r"\gg": "≫",
+            r"\pm": "±", r"\mp": "∓", r"\times": "×", r"\div": "÷",
+            r"\cdot": "·", r"\partial": "∂", r"\nabla": "∇", r"\to": "→",
+            r"\leftarrow": "←", r"\rightarrow": "→", r"\leftrightarrow": "↔",
+            r"\Leftarrow": "⇐", r"\Rightarrow": "⇒", r"\Leftrightarrow": "⇔",
+            r"\in": "∈", r"\notin": "∉", r"\subset": "⊂", r"\supset": "⊃",
+            r"\subseteq": "⊆", r"\supseteq": "⊇", r"\cup": "∪", r"\cap": "∩",
+            r"\forall": "∀", r"\exists": "∃", r"\nexists": "∄",
+            r"\hbar": "ħ", r"\sim": "~", r"\equiv": "≡", r"\parallel": "∥",
+        }
+        for k, v in symbols.items():
+            s = s.replace(k, v)
+
+        # Spacing commands
+        s = re.sub(r"\\(?:quad|qquad|\s|,|;|!)+", " ", s)
+
+        # Radicals
+        s = re.sub(r"\\sqrt\[([^\]]+)\]\{([^{}]+)\}", r"<sup>\1</sup>√(\2)", s)
+        s = re.sub(r"\\sqrt\{([^{}]+)\}", r"√(\1)", s)
+
+        # Fractions (3 levels of nesting)
+        for _ in range(3):
+            s = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", s)
+
+        # Superscripts
+        s = re.sub(r"\^\{([^{}]+)\}", r"<sup>\1</sup>", s)
+        s = re.sub(r"\^([a-zA-Z0-9α-ωΑ-Ω∞+\-*=])", r"<sup>\1</sup>", s)
+
+        # Subscripts
+        s = re.sub(r"_\{([^{}]+)\}", r"<sub>\1</sub>", s)
+        s = re.sub(r"_([a-zA-Z0-9α-ωΑ-Ω∞+\-*=])", r"<sub>\1</sub>", s)
+
+        # Styles
+        s = re.sub(r"\\(?:mathbf|textbf)\{([^{}]+)\}", r"<b>\1</b>", s)
+        s = re.sub(r"\\(?:mathit|textit)\{([^{}]+)\}", r"<i>\1</i>", s)
+        s = re.sub(r"\\(?:mathrm|text|operatorname)\{([^{}]+)\}", r"\1", s)
+        s = re.sub(r"\\hat\{([^{}]+)\}", r"\1̂", s)
+        s = re.sub(r"\\bar\{([^{}]+)\}", r"\1̄", s)
+        s = re.sub(r"\\vec\{([^{}]+)\}", r"\1⃗", s)
+
+        # Strip any remaining LaTeX commands & cleanup braces
+        s = re.sub(r"\\[a-zA-Z]+", "", s)
+        s = s.replace("{", "").replace("}", "").replace(r"\ ", " ")
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
+

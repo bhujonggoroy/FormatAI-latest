@@ -9,6 +9,7 @@ from backend.services.docx_service import DocxService
 from backend.services.formatting_service import FormattingService
 from backend.services.health_service import HealthService
 from backend.services.math_service import MathService
+from backend.services.pdf_service import PdfService
 from backend.services.provider_service import ProviderService
 
 
@@ -60,3 +61,11 @@ def get_docx_service(
 ) -> DocxService:
     """Dependency provider for DocxService."""
     return DocxService(math_service=math_service)
+
+
+def get_pdf_service(
+    math_service: MathService = Depends(get_math_service),
+) -> PdfService:
+    """Dependency provider for PdfService."""
+    return PdfService(math_service=math_service)
+

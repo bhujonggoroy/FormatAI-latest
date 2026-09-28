@@ -155,3 +155,24 @@ class DocumentDocxExportRequest(BaseModel):
         description="Optional custom file name without extension",
     )
     options: DocumentProcessingOptions = Field(default_factory=DocumentProcessingOptions)
+
+
+class DocumentPdfExportRequest(BaseModel):
+    """Request payload for exporting to Adobe PDF format."""
+    document: Optional[DocumentStructure] = Field(
+        default=None,
+        description="Structured document representation. If omitted, raw_text is processed first.",
+    )
+    raw_text: Optional[str] = Field(
+        default=None,
+        description="Raw academic text to format and export if document is not provided.",
+    )
+    preset: str = Field(
+        default="academic",
+        description="Style preset name: academic, research_paper, exam, study_notes, textbook",
+    )
+    filename: Optional[str] = Field(
+        default=None,
+        description="Optional custom file name without extension",
+    )
+    options: DocumentProcessingOptions = Field(default_factory=DocumentProcessingOptions)

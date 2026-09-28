@@ -192,6 +192,29 @@ def test_successful_ai_generation_mocked_client():
         app.dependency_overrides.clear()
 
 
+def test_gemini_provider_model_alias_resolution():
+    """Verify deprecated model requests (e.g. gemini-2.5-flash) are automatically mapped to gemini-3.8-flash."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = "Normalized content"
+    mock_client.models.generate_content.return_value = mock_response
+
+    provider = GeminiProvider(client=mock_client)
+
+    # Call with legacy model
+    result = provider.generate_text(
+        prompt="Test prompt",
+        model="gemini-2.5-flash",
+    )
+
+    assert result.content == "Normalized content"
+    assert result.model == "gemini-3.8-flash"
+    mock_client.models.generate_content.assert_called_once_with(
+        model="gemini-3.8-flash",
+        contents="Test prompt",
+    )
+
+
 def test_ai_service_with_custom_provider_stub():
     """Verify AIService operates purely via the BaseAIProvider abstraction."""
     class MockCustomProvider(BaseAIProvider):

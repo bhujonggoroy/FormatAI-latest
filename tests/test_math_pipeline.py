@@ -199,6 +199,32 @@ def test_latex_to_omml_matrix():
     assert "<m:mr>" in res.omml  # Matrix row
 
 
+def test_latex_to_omml_accents_and_groupchr():
+    """Verify that bar, vec, underline with groupChr tags produce valid well-formed OMML without XML parse errors."""
+    from docx import Document
+    math_svc = MathService()
+
+    expressions = [
+        r"\bar{z}",
+        r"\vec{v}",
+        r"\underline{x}",
+        r"\sigma^2 = \frac{1}{N} \sum_{i=1}^{N} (z_i - \bar{z})^2",
+    ]
+
+    for expr in expressions:
+        res = math_svc.latex_to_omml(expr)
+        assert res.success is True
+        assert "<m:oMath" in res.omml
+        # Verify tag mismatch bug is eliminated
+        assert "</m:groupChrPr>" in res.omml or "<m:groupChrPr" not in res.omml
+
+        # Verify paragraph rendering succeeds with native OMML and does not use fallback
+        doc = Document()
+        p = doc.add_paragraph()
+        rendered_native = math_svc.render_math_to_paragraph(p, expr)
+        assert rendered_native is True, f"Native OMML parsing failed for expression: {expr}"
+
+
 def test_latex_to_omml_graceful_fallback():
     """Verify that unparseable LaTeX degrades gracefully without raising unhandled exceptions."""
     math_svc = MathService()

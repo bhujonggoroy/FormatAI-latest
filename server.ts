@@ -125,11 +125,44 @@ async function createServer() {
 
   const app = express();
 
-  // API Proxy Handler for /api and /api/*
+  // Dedicated Health Check Endpoint with Auto-Wait & Self-Healing
+  app.get('/api/health', async (_req, res) => {
+    // Ensure Python supervisor is running
+    if (!pythonProcess || pythonProcess.killed) {
+      startPythonBackend();
+    }
+
+    let ready = isPythonReady && (await checkPythonHealth());
+    if (!ready) {
+      ready = await waitForPython(4000);
+    }
+
+    if (ready) {
+      return res.status(200).json({
+        status: 'ok',
+        service: 'FormatAI',
+        backend: 'python',
+      });
+    }
+
+    return res.status(503).json({
+      status: 'starting',
+      service: 'FormatAI',
+      backend: 'python',
+      message: 'Python FastAPI backend is initializing, please retry shortly.',
+    });
+  });
+
+  // API Proxy Handler for all other /api/* routes
   app.use('/api', async (req, res) => {
-    // If python is still booting, wait up to 4 seconds
+    // Ensure Python process is active
+    if (!pythonProcess || pythonProcess.killed) {
+      startPythonBackend();
+    }
+
+    // If python is still booting, wait up to 5 seconds
     if (!isPythonReady) {
-      await waitForPython(4000);
+      await waitForPython(5000);
     }
 
     const options: http.RequestOptions = {
@@ -149,10 +182,10 @@ async function createServer() {
     });
 
     proxyReq.on('error', (err) => {
-      console.error(`[FormatAI] Proxy error for ${req.method} ${req.originalUrl}:`, err.message);
+      console.warn(`[FormatAI] Proxy notice for ${req.method} ${req.originalUrl}:`, err.message);
       if (!res.headersSent) {
         res.status(502).json({
-          error: 'Backend Python service unavailable',
+          error: 'Backend Python service temporarily unavailable',
           message: err.message,
           hint: 'The Python FastAPI backend is currently initializing. Please retry in a moment.',
         });
