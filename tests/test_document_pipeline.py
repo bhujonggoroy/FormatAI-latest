@@ -199,7 +199,7 @@ def test_structure_detection_scientific_and_chemical():
     assert EntityType.SCIENTIFIC_NOTATION in entity_types
 
     chem_entities = [ent.normalized_text for ent in para.entities if ent.entity_type == EntityType.CHEMICAL_FORMULA]
-    assert "H2O" in chem_entities or "CO2" in chem_entities
+    assert any(x in chem_entities for x in ["H2O", "H₂O", "CO2", "CO₂", "C6H12O6", "C₆H₁₂O₆"])
 
 
 def test_structure_detection_citations_and_references():

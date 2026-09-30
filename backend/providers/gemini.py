@@ -118,7 +118,7 @@ class GeminiProvider(BaseAIProvider):
         if self._discovered_models and not force_refresh:
             return list(self._discovered_models)
 
-        if not self.is_configured():
+        if not force_refresh or not self.is_configured():
             return list(self.SUPPORTED_MODELS)
 
         try:

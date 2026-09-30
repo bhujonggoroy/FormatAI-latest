@@ -120,6 +120,8 @@ class DocumentProcessingOptions(BaseModel):
     enable_formatting_cleanup: bool = Field(default=True, description="Fix heading hierarchy, list formatting, typography")
     target_style: str = Field(default="APA", description="Academic styling profile (APA, IEEE, Harvard, MLA)")
     smart_typography: bool = Field(default=True, description="Convert quotes, em-dashes, ellipses")
+    enabled_skills: Optional[List[str]] = Field(default=None, description="Explicit list of skills to execute")
+    disabled_skills: Optional[List[str]] = Field(default=None, description="Skills explicitly disabled by user")
 
 
 class DocumentProcessRequest(BaseModel):
@@ -133,6 +135,8 @@ class DocumentProcessResponse(BaseModel):
     success: bool = True
     document: DocumentStructure
     analysis: DocumentAnalysis
+    executed_skills: List[str] = Field(default_factory=list, description="Skills that processed the document")
+    skipped_skills: List[str] = Field(default_factory=list, description="Skills that were disabled or skipped")
     pipeline_stages: Dict[str, Any] = Field(default_factory=dict)
 
 

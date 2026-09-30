@@ -35,9 +35,9 @@ RE_SCIENTIFIC_NOTATION = re.compile(
     r"\b(\d+(?:\.\d+)?[eE][+-]?\d+)\b"
 )
 
-# Chemical formulas: H2O, CO2, C6H12O6, H2SO4, Ca(OH)2, Fe2O3, CH3COOH
+# Chemical formulas: H2O, H₂O, CO2, CO₂, C6H12O6, H2SO4, Ca(OH)2, Fe2O3, CH3COOH
 RE_CHEMICAL_FORMULA = re.compile(
-    r"\b([A-Z][a-z]?(?:\d+)?(?:[A-Z][a-z]?(?:\d+)?)+(?:\([A-Z][a-z]?(?:\d+)?\)(?:\d+)?)?)\b"
+    r"\b([A-Z][a-z]?(?:[0-9₀-₉]+)?(?:[A-Z][a-z]?(?:[0-9₀-₉]+)?)+(?:\([A-Z][a-z]?(?:[0-9₀-₉]+)?\)(?:[0-9₀-₉]+)?)?)\b"
 )
 
 # Citations:

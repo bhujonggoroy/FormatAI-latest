@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,6 +15,18 @@ const PYTHON_HOST = '127.0.0.1';
 
 let pythonProcess: ChildProcess | null = null;
 let isPythonReady = false;
+
+function resolvePythonExecutable(): string {
+  const venvPython = path.resolve(__dirname, '.venv/bin/python');
+  if (fs.existsSync(venvPython)) {
+    return venvPython;
+  }
+  const systemPython = '/usr/bin/python3';
+  if (fs.existsSync(systemPython)) {
+    return systemPython;
+  }
+  return 'python3';
+}
 
 // ---------------------------------------------------------------------------
 // Python Backend Supervisor
@@ -60,10 +73,11 @@ function startPythonBackend() {
     return;
   }
 
-  console.log(`[FormatAI] Spawning Python FastAPI backend on port ${PYTHON_PORT}...`);
+  const pythonBin = resolvePythonExecutable();
+  console.log(`[FormatAI] Spawning Python FastAPI backend using ${pythonBin} on port ${PYTHON_PORT}...`);
   pythonProcess = spawn(
-    'python3',
-    ['-m', 'uvicorn', 'backend.main:app', '--host', PYTHON_HOST, '--port', String(PYTHON_PORT)],
+    pythonBin,
+    ['-m', 'uvicorn', 'backend.main:app', '--host', '0.0.0.0', '--port', String(PYTHON_PORT)],
     {
       cwd: __dirname,
       stdio: ['ignore', 'inherit', 'inherit'],

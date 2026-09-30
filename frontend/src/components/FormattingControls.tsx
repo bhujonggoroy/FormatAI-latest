@@ -4,7 +4,7 @@ import {
   StylePresetName,
 } from '../types/document.ts';
 import { STYLE_PRESETS } from '../services/documentService.ts';
-import { Sliders, CheckSquare, Square, BookOpen, Layers } from 'lucide-react';
+import { Sliders, CheckSquare, Square, BookOpen, Layers, Sparkles } from 'lucide-react';
 
 interface FormattingControlsProps {
   preset: StylePresetName;
@@ -14,6 +14,8 @@ interface FormattingControlsProps {
   filename: string;
   onChangeFilename: (name: string) => void;
   disabled?: boolean;
+  activeSkillsCount?: number;
+  onOpenSkillsManager?: () => void;
 }
 
 const STYLES_LIST = ['APA', 'IEEE', 'Harvard', 'MLA', 'Chicago'];
@@ -26,6 +28,8 @@ export const FormattingControls: React.FC<FormattingControlsProps> = ({
   filename,
   onChangeFilename,
   disabled = false,
+  activeSkillsCount,
+  onOpenSkillsManager,
 }) => {
   const currentPresetDetails = STYLE_PRESETS.find((p) => p.id === preset) || STYLE_PRESETS[0];
 
@@ -44,7 +48,20 @@ export const FormattingControls: React.FC<FormattingControlsProps> = ({
           <Sliders className="w-4 h-4 text-indigo-400" />
           <h3 className="text-sm font-semibold text-white">Formatting Controls</h3>
         </div>
-        <span className="text-xs text-slate-400 font-mono">Preset & Rules</span>
+        <div className="flex items-center gap-2">
+          {onOpenSkillsManager && (
+            <button
+              type="button"
+              onClick={onOpenSkillsManager}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium transition-colors"
+              title="Configure modular document processing skills"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Skills {activeSkillsCount !== undefined ? `(${activeSkillsCount} Active)` : ''}</span>
+            </button>
+          )}
+          <span className="text-xs text-slate-400 font-mono hidden sm:inline">Preset & Rules</span>
+        </div>
       </div>
 
       {/* Preset Cards Selection */}

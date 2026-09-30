@@ -111,6 +111,8 @@ export interface DocumentProcessingOptions {
   enable_formatting_cleanup: boolean;
   target_style: string;
   smart_typography: boolean;
+  enabled_skills?: string[];
+  disabled_skills?: string[];
 }
 
 export interface DocumentProcessRequest {
@@ -122,6 +124,8 @@ export interface DocumentProcessResponse {
   success: boolean;
   document: DocumentStructure;
   analysis: DocumentAnalysis;
+  executed_skills?: string[];
+  skipped_skills?: string[];
   pipeline_stages?: Record<string, unknown>;
 }
 

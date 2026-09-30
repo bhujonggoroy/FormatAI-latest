@@ -73,17 +73,23 @@ class CustomOpenAIProvider(BaseAIProvider):
         return bool(self._base_url)
 
     def list_models(self, force_refresh: bool = False) -> List[AIModelInfo]:
-        """Dynamically discovers models available on the custom OpenAI-compatible server."""
+        """Dynamically discovers models available on the custom OpenAI-compatible server.
+        
+        When force_refresh=False, returns curated default without firing speculative network requests.
+        When force_refresh=True, queries the custom endpoint /models path.
+        """
         if self._discovered_models and not force_refresh:
             return list(self._discovered_models)
 
-        if not self.is_configured():
+        # Do not fire speculative network requests during manifest inspection or startup
+        if not force_refresh or not self.is_configured():
             return [
                 AIModelInfo(
                     id=self.DEFAULT_MODEL,
-                    name="Default Custom Model",
+                    name=f"Custom Model ({self._base_url})",
                     context_window=32768,
                     supports_formatting=True,
+                    description="Custom endpoint model configured on your local or private server.",
                 )
             ]
 
@@ -91,7 +97,7 @@ class CustomOpenAIProvider(BaseAIProvider):
             data = self._http.request(
                 method="GET",
                 path="models",
-                timeout=6.0,
+                timeout=4.0,
                 retries=0,
             )
             items = data.get("data", [])
@@ -113,8 +119,8 @@ class CustomOpenAIProvider(BaseAIProvider):
                 self._discovered_models = discovered
                 return list(discovered)
         except Exception as exc:
-            logger.warning(
-                f"Custom endpoint model discovery at '{self._base_url}' failed: {exc}. Using fallback default model."
+            logger.info(
+                f"Custom endpoint model discovery at '{self._base_url}' was not reachable: {exc}. Using fallback default model."
             )
 
         return [

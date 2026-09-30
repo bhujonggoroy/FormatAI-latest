@@ -122,6 +122,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
         {/* Viewport Control Tools */}
         <div className="flex items-center gap-2">
+          {isProcessing && (
+            <span className="flex items-center gap-1.5 text-xs text-indigo-400 font-mono animate-pulse mr-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+              Formatting...
+            </span>
+          )}
           {activeTab === 'paper' && (
             <button
               type="button"

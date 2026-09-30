@@ -5,7 +5,8 @@ Ensures zero hardcoded secrets or API keys.
 """
 
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,8 +40,17 @@ class Settings(BaseSettings):
     DEFAULT_AI_MAX_RETRIES: int = 1
     DISABLED_AI_PROVIDERS: list[str] = []
 
-    # CORS settings
+    # CORS settings (e.g. "https://your-project.vercel.app,http://localhost:3000")
     ALLOWED_ORIGINS: list[str] = ["*"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, list[str]]) -> list[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return v
+        return ["*"]
 
     model_config = SettingsConfigDict(
         env_file=".env",

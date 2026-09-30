@@ -1,7 +1,11 @@
 # Environment and Secrets
 .env
 .env.local
+.env.*.local
+.env.production
+.env.preview
 *.env
+.vercel
 
 # Python
 __pycache__/

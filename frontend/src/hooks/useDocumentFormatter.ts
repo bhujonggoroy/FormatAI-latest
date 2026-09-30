@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   DocumentAnalysis,
   DocumentProcessingOptions,
@@ -9,6 +9,7 @@ import {
 } from '../types/document.ts';
 import { DEFAULT_PROCESSING_OPTIONS, DocumentService } from '../services/documentService.ts';
 import { ACADEMIC_SAMPLES } from '../utils/samples.ts';
+import { useUserSettings } from './useUserSettings.ts';
 
 export interface UseDocumentFormatterResult {
   // Content & Configuration
@@ -25,6 +26,8 @@ export interface UseDocumentFormatterResult {
   analysis: DocumentAnalysis | null;
   structuredDoc: DocumentStructure | null;
   lastResponse: DocumentProcessResponse | null;
+  executedSkills: string[];
+  skippedSkills: string[];
 
   // Workflow State & Indicators
   workflow: WorkflowProgress;
@@ -44,10 +47,56 @@ export interface UseDocumentFormatterResult {
 }
 
 export function useDocumentFormatter(): UseDocumentFormatterResult {
+  const { profile, activeSkills, updateFormattingPreferences } = useUserSettings();
+
   const [rawText, setRawText] = useState<string>(ACADEMIC_SAMPLES[0].rawText);
-  const [options, setOptions] = useState<DocumentProcessingOptions>(DEFAULT_PROCESSING_OPTIONS);
-  const [preset, setPreset] = useState<StylePresetName>('research_paper');
-  const [filename, setFilename] = useState<string>('manuscript_formatted');
+  const [options, setInternalOptions] = useState<DocumentProcessingOptions>(
+    profile?.formatting?.options || DEFAULT_PROCESSING_OPTIONS
+  );
+  const [preset, setInternalPreset] = useState<StylePresetName>(
+    profile?.formatting?.preset || 'research_paper'
+  );
+  const [filename, setInternalFilename] = useState<string>(
+    profile?.formatting?.customFilename || 'manuscript_formatted'
+  );
+
+  const effectiveOptions: DocumentProcessingOptions = {
+    ...options,
+    enabled_skills: activeSkills,
+  };
+
+  // Sync state when active isolated profile changes
+  useEffect(() => {
+    if (profile?.formatting) {
+      setInternalOptions(profile.formatting.options);
+      setInternalPreset(profile.formatting.preset);
+      setInternalFilename(profile.formatting.customFilename);
+    }
+  }, [profile?.id]);
+
+  const setOptions = useCallback(
+    (opts: DocumentProcessingOptions) => {
+      setInternalOptions(opts);
+      updateFormattingPreferences({ options: opts });
+    },
+    [updateFormattingPreferences]
+  );
+
+  const setPreset = useCallback(
+    (nextPreset: StylePresetName) => {
+      setInternalPreset(nextPreset);
+      updateFormattingPreferences({ preset: nextPreset });
+    },
+    [updateFormattingPreferences]
+  );
+
+  const setFilename = useCallback(
+    (name: string) => {
+      setInternalFilename(name);
+      updateFormattingPreferences({ customFilename: name });
+    },
+    [updateFormattingPreferences]
+  );
 
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
   const [structuredDoc, setStructuredDoc] = useState<DocumentStructure | null>(null);
@@ -123,7 +172,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
     });
 
     try {
-      const result = await DocumentService.analyze(rawText, options);
+      const result = await DocumentService.analyze(rawText, effectiveOptions);
       setAnalysis(result);
       setWorkflow({
         stage: 'completed',
@@ -143,7 +192,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         error: msg,
       });
     }
-  }, [rawText, options]);
+  }, [rawText, effectiveOptions]);
 
   /**
    * Executes the full pipeline:
@@ -176,7 +225,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         progressPercent: 60,
       });
 
-      const response = await DocumentService.process(rawText, options);
+      const response = await DocumentService.process(rawText, effectiveOptions);
 
       setWorkflow({
         stage: 'formatting',
@@ -207,7 +256,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         error: msg,
       });
     }
-  }, [rawText, options, preset]);
+  }, [rawText, effectiveOptions, preset]);
 
   /**
    * Generates and triggers download of .docx
@@ -219,7 +268,6 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
     }
 
     setError(null);
-    const prevStage = workflow.stage;
     setWorkflow({
       stage: 'exporting',
       label: 'Exporting DOCX',
@@ -234,7 +282,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         rawText: structuredDoc ? null : rawText,
         preset,
         customFilename: filename,
-        options,
+        options: effectiveOptions,
       });
 
       setLastExportedFile({
@@ -261,7 +309,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         error: msg,
       });
     }
-  }, [rawText, structuredDoc, preset, filename, options, workflow.stage]);
+  }, [rawText, structuredDoc, preset, filename, effectiveOptions]);
 
   /**
    * Generates and triggers download of .pdf
@@ -287,7 +335,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         rawText: structuredDoc ? null : rawText,
         preset,
         customFilename: filename,
-        options,
+        options: effectiveOptions,
       });
 
       setLastExportedFile({
@@ -314,7 +362,7 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
         error: msg,
       });
     }
-  }, [rawText, structuredDoc, preset, filename, options]);
+  }, [rawText, structuredDoc, preset, filename, effectiveOptions]);
 
   const isProcessing =
     workflow.stage === 'analyzing' ||
@@ -336,6 +384,8 @@ export function useDocumentFormatter(): UseDocumentFormatterResult {
     analysis,
     structuredDoc,
     lastResponse,
+    executedSkills: lastResponse?.executed_skills || [],
+    skippedSkills: lastResponse?.skipped_skills || [],
 
     workflow,
     isProcessing,

@@ -25,7 +25,7 @@ class AIGenerateRequest(BaseModel):
         description="AI provider identifier (e.g. 'gemini', 'groq', 'openrouter', 'mistral', 'cohere', 'huggingface', 'openai', 'custom').",
     )
     temperature: Optional[float] = Field(
-        default=0.2,
+        default=None,
         ge=0.0,
         le=2.0,
         description="Sampling temperature.",

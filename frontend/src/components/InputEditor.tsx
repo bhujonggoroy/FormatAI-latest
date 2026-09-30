@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import {
-  Heading1,
   Heading2,
   Heading3,
   Bold,

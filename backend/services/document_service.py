@@ -29,6 +29,7 @@ from backend.models.document import (
 )
 from backend.services.content_cleanup_service import ContentCleanupService
 from backend.services.formatting_service import FormattingService
+from backend.skills.orchestrator import SkillOrchestrator
 from backend.utils.markdown import (
     extract_heading_info,
     is_blockquote,
@@ -49,44 +50,47 @@ class DocumentService:
         settings: Optional[Settings] = None,
         content_cleanup_service: Optional[ContentCleanupService] = None,
         formatting_service: Optional[FormattingService] = None,
+        skill_orchestrator: Optional[SkillOrchestrator] = None,
     ):
         self._settings = settings
         self._content_cleanup = content_cleanup_service or ContentCleanupService()
         self._formatting = formatting_service or FormattingService()
+        self._skill_orchestrator = skill_orchestrator or SkillOrchestrator()
 
     def process(self, request: DocumentProcessRequest) -> DocumentProcessResponse:
-        """Executes the complete document processing pipeline."""
+        """Executes the complete document processing pipeline:
+        Input → Skill Orchestrator → Enabled Skills → Document Model → Export
+        """
         raw_text = request.raw_text
         options = request.options
 
-        logger.info(f"Processing academic document: {len(raw_text)} chars")
+        logger.info(f"Processing academic document through Skill Orchestrator: {len(raw_text)} chars")
 
         # 1. Content Analysis (pre-transformation assessment)
         analysis = self.analyze_content(raw_text)
 
-        # 2. Content Cleanup
-        if options.enable_content_cleanup:
-            cleaned_content = self._content_cleanup.cleanup(raw_text)
-        else:
-            cleaned_content = raw_text
+        # 2. Skill Orchestrator (Enabled Skills processing)
+        orchestration = self._skill_orchestrator.run_pipeline(
+            text=raw_text,
+            enabled_skills=options.enabled_skills,
+            disabled_skills=options.disabled_skills,
+            context={
+                "target_style": options.target_style,
+                "smart_typography": options.smart_typography,
+                "enable_content_cleanup": options.enable_content_cleanup,
+                "enable_formatting_cleanup": options.enable_formatting_cleanup,
+            },
+        )
 
-        # 3. Formatting Rules
         diagnostics = list(analysis.diagnostics)
-        if options.enable_formatting_cleanup:
-            formatted_text, format_diag = self._formatting.format_document(
-                cleaned_content,
-                apply_typography=options.smart_typography,
-            )
-            diagnostics.extend(format_diag)
-        else:
-            formatted_text = cleaned_content
-
+        if orchestration.all_diagnostics:
+            diagnostics.extend(orchestration.all_diagnostics)
         analysis.diagnostics = diagnostics
 
-        # 4. Structure Detection
-        elements = self.detect_structure(formatted_text)
+        # 3. Structure Detection on the skill-transformed text
+        elements = self.detect_structure(orchestration.final_text)
 
-        # 5. Build Internal Document Model
+        # 4. Build Internal Document Model
         document = self.build_document_model(elements)
 
         # Update analysis title if detected during structure phase
@@ -97,11 +101,13 @@ class DocumentService:
             success=True,
             document=document,
             analysis=analysis,
+            executed_skills=orchestration.executed_skills,
+            skipped_skills=orchestration.skipped_skills,
             pipeline_stages={
                 "raw_char_count": len(raw_text),
-                "cleaned_char_count": len(cleaned_content),
-                "formatted_char_count": len(formatted_text),
+                "processed_char_count": len(orchestration.final_text),
                 "total_elements_detected": len(elements),
+                "skills_pipeline_duration_ms": orchestration.total_execution_time_ms,
             },
         )
 

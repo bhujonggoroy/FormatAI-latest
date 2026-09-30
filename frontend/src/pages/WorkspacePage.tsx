@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDocumentFormatter } from '../hooks/useDocumentFormatter.ts';
 import { useBackendHealth } from '../hooks/useBackendHealth.ts';
+import { useUserSettings } from '../contexts/UserSettingsContext.tsx';
 import { Header } from '../components/Header.tsx';
 import { ProcessingStatus } from '../components/ProcessingStatus.tsx';
 import { ErrorNotifications } from '../components/ErrorNotifications.tsx';
@@ -9,8 +10,15 @@ import { FormattingControls } from '../components/FormattingControls.tsx';
 import { AIProviderSettings } from '../components/AIProviderSettings.tsx';
 import { DocumentPreview } from '../components/DocumentPreview.tsx';
 import { ExportControls } from '../components/ExportControls.tsx';
+import { SecurityModelModal } from '../components/SecurityModelModal.tsx';
+import { SkillsManagerModal } from '../components/SkillsManagerModal.tsx';
 
 export const WorkspacePage: React.FC = () => {
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState<boolean>(false);
+  const [isSkillsModalOpen, setIsSkillsModalOpen] = useState<boolean>(false);
+
+  const { activeSkills } = useUserSettings();
+
   const {
     rawText,
     setRawText,
@@ -22,6 +30,8 @@ export const WorkspacePage: React.FC = () => {
     setFilename,
     analysis,
     structuredDoc,
+    executedSkills,
+    skippedSkills,
     workflow,
     isProcessing,
     isExporting,
@@ -46,6 +56,22 @@ export const WorkspacePage: React.FC = () => {
         isConnecting={isConnecting}
         onRefreshHealth={refreshHealth}
         onSelectSample={loadSample}
+        onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+        onOpenSkillsModal={() => setIsSkillsModalOpen(true)}
+      />
+
+      {/* Security & Privacy Center Modal */}
+      <SecurityModelModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+      />
+
+      {/* Modular Skills Architecture Modal */}
+      <SkillsManagerModal
+        isOpen={isSkillsModalOpen}
+        onClose={() => setIsSkillsModalOpen(false)}
+        executedSkills={executedSkills}
+        skippedSkills={skippedSkills}
       />
 
       {/* Main Workspace Viewport */}
@@ -77,6 +103,8 @@ export const WorkspacePage: React.FC = () => {
               filename={filename}
               onChangeFilename={setFilename}
               disabled={isProcessing || isExporting}
+              activeSkillsCount={activeSkills.length}
+              onOpenSkillsManager={() => setIsSkillsModalOpen(true)}
             />
 
             {/* AI Assistant Settings */}

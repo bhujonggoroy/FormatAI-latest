@@ -16,8 +16,15 @@ import {
 import {
   AIGenerateRequest,
   AIGenerateResponse,
-  AIErrorResponse,
+  AIProviderManifestItem,
+  ProviderValidationResult,
 } from '../types/ai.ts';
+import {
+  DEFAULT_SKILL_MANIFEST,
+  SkillInfo,
+  SkillValidationResult,
+  SkillExecutionResult,
+} from '../types/skills.ts';
 
 export interface HealthCheckResponse {
   status: 'ok' | 'starting' | 'error';
@@ -241,12 +248,101 @@ export const apiClient = {
   },
 
   /**
-   * AI text generation via configured AI provider (e.g., Google Gemini).
+   * AI text generation via configured AI provider (e.g., Google Gemini, Groq, OpenRouter, etc.).
    */
   async generateAI(payload: AIGenerateRequest): Promise<AIGenerateResponse> {
     return request<AIGenerateResponse>('/api/ai/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Lists all integrated AI providers, their availability, enabled state, and models.
+   */
+  async listProviders(): Promise<AIProviderManifestItem[]> {
+    return request<AIProviderManifestItem[]>('/api/ai/providers', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Discovers models dynamically from a specific provider.
+   */
+  async discoverModels(providerId: string): Promise<any[]> {
+    return request<any[]>(`/api/ai/providers/${providerId}/models`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Validates credentials and connection for an AI provider.
+   */
+  async validateProvider(
+    providerId: string,
+    apiKey?: string,
+    baseUrl?: string
+  ): Promise<ProviderValidationResult> {
+    return request<ProviderValidationResult>(`/api/ai/providers/${providerId}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        api_key: apiKey,
+        base_url: baseUrl,
+      }),
+    });
+  },
+
+  /**
+   * Enables or disables an AI provider adapter.
+   */
+  async toggleProvider(
+    providerId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; provider_id: string; enabled: boolean; message: string }> {
+    return request(`/api/ai/providers/${providerId}/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+  },
+
+  /**
+   * Lists all registered modular document-processing skills.
+   */
+  async listSkills(): Promise<SkillInfo[]> {
+    try {
+      return await request<SkillInfo[]>('/api/skills', {
+        method: 'GET',
+      });
+    } catch {
+      return DEFAULT_SKILL_MANIFEST;
+    }
+  },
+
+  /**
+   * Validates a text snippet with a specific skill.
+   */
+  async validateSkill(
+    skillId: string,
+    text: string,
+    context?: Record<string, unknown>
+  ): Promise<SkillValidationResult> {
+    return request<SkillValidationResult>(`/api/skills/${skillId}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({ text, context }),
+    });
+  },
+
+  /**
+   * Transforms text through a single modular skill.
+   */
+  async processSkill(
+    skillId: string,
+    text: string,
+    context?: Record<string, unknown>
+  ): Promise<SkillExecutionResult> {
+    return request<SkillExecutionResult>(`/api/skills/${skillId}/process`, {
+      method: 'POST',
+      body: JSON.stringify({ text, context }),
     });
   },
 };

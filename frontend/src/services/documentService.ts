@@ -1,7 +1,6 @@
 import { apiClient } from './api.ts';
 import {
   DocumentAnalysis,
-  DocumentExportRequest,
   DocumentProcessingOptions,
   DocumentProcessResponse,
   DocumentStructure,
